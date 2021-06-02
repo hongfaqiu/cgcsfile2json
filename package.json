@@ -1,12 +1,12 @@
 {
   "name": "cgcsfile2json",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "convert cgcs2000 polygon shp or txt to geojson",
   "main": "index.js",
   "scripts": {},
   "repository": {
     "type": "git",
-    "url": "git://github.com/hongfaqiu/cgcs2000file2json.git"
+    "url": "git://github.com/hongfaqiu/cgcsfile2json.git"
   },
   "keywords": [
     "cgcs2000",

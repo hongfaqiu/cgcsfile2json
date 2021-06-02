@@ -2,7 +2,13 @@
 
 convert cgcs2000(EPSG4479, EPSG4490) polygon shp or txt to CGCS_2000(EPSG:4490) geojson
 
-## Usage
+## usage
+
+For node.js
+
+    npm install --save cgcsfile2json
+
+## example
 
 ```js
 
