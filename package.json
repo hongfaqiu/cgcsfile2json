@@ -21,5 +21,8 @@
   "license": "MIT",
   "dependencies": {
     "shapefile": "^0.6.6"
+  },
+  "devDependencies": {
+    "browserify": "^17.0.0"
   }
 }
