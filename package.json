@@ -1,6 +1,6 @@
 {
   "name": "cgcsfile2json",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "convert cgcs2000 polygon shp or txt to geojson",
   "main": "index.js",
   "scripts": {},

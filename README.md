@@ -1,6 +1,7 @@
 # cgcsfile2json
 
 convert cgcs2000(4528, 4549, 4490) polygon shp or txt to CGCS_2000(EPSG:4490) geojson
+代码写得很烂，凑活用吧，后面有空再重构
 
 ## usage
 
@@ -32,7 +33,7 @@ let data2 = file2coor.convertFile(shpFile, 'shp', coors[2]);
 
 [4528, 4549, 4490]
 
-### ``convertFile(file, type, coor = '大地2000 有带号直角坐标系')``
+### ``convertFile(file, type, coor = 4528)``
 
 convert .shp or .txt file to geojson
 

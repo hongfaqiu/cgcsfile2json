@@ -1,14 +1,58 @@
 import { open } from 'shapefile'
 import axios from 'axios'
 import Qs from 'qs'
-class File2Coor {
+export default class File2Coor {
   constructor() {
     // this.coordinates = ['大地2000 有带号直角坐标系', '大地2000 无带号直角坐标系', '大地2000经纬度坐标系'];
     this.wikid = [4528, 4549, 4490];
+    this._boundary = { // 杭州范围
+      xMin: 118.1217,
+      xMax: 120.7753,
+      yMin: 29.1304,
+      yMax: 30.6191
+    }
   }
+
   getCoordinates() {
     return this.wikid;
   }
+
+  setBoundary(bound) {
+    this._boundary = bound;
+  }
+
+  async convertFile(file, type, coor = this.wikid[0]) {
+    let data = [];
+    if(type === 'shp'){
+      let temp = await this.parsingShape(file);
+      data = await this.handleDataChange(temp, coor);
+    } else if(type === 'txt'){
+      data = await this.parsingTxt(file);
+      if (coor !== this._coordinates[0]) {
+        data = await this.handleDataChange(data, coor);
+      }
+    }
+    return data;
+  }
+
+  // 通过文件和后缀名判断属于哪个坐标系
+  async judgeTypeByName(file, type) {
+    if (type === 'txt') { //txt默认为第一种坐标系
+      return this._coordinates[0];
+    }
+
+    if(type === 'shp'){
+      let temp = await this.parsingShape(file);
+      for (let coor of this._coordinates) {
+        let data = this.handleDataChange(temp, coor);
+        if(this.boundCheck(data)){
+          return coor;
+        }
+      }
+    }
+    return '';
+  }
+
   // 通过文件名判断属于哪个坐标系
   async judgeTypeByName(file, type) {
     if (type === 'txt') { //txt默认为第一种坐标系
@@ -261,8 +305,7 @@ class File2Coor {
   checkPoint(point, order) { // 测试经纬度是否在杭州范围内
     let lon = +point[order ? 1 : 0]; // 经度
     let lat = +point[order ? 0 : 1]; // 纬度
-    return 29.1304 <= lat && lat <= 30.6191 && 118.1217 <= lon && 120.7753;
+    const { xMin, xMax, yMin, yMax } = this._boundary;
+    return yMin <= lat && lat <= yMax && xMin <= lon && xMax;
   }
 }
-
-export default new File2Coor();
