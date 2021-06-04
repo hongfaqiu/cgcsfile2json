@@ -1,56 +1,32 @@
 import { open } from 'shapefile'
-
-export default class File2Coor {
+import axios from 'axios'
+import Qs from 'qs'
+class File2Coor {
   constructor() {
-    this._coordinates = ['大地2000 有带号直角坐标系', '大地2000 无带号直角坐标系', '大地2000经纬度坐标系'];
-    this._boundary = { // 杭州范围
-      xMin: 118.1217,
-      xMax: 120.7753,
-      yMin: 29.1304,
-      yMax: 30.6191
-    }
+    // this.coordinates = ['大地2000 有带号直角坐标系', '大地2000 无带号直角坐标系', '大地2000经纬度坐标系'];
+    this.wikid = [4528, 4549, 4490];
   }
-
   getCoordinates() {
-    return this._coordinates;
+    return this.wikid;
   }
-
-  setBoundary(bound) {
-    this._boundary = bound;
-  }
-
-  async convertFile(file, type, coor = this._coordinates[0]) {
-    let data = [];
-    if(type === 'shp'){
-      let temp = await this.parsingShape(file);
-      data = this.handleDataChange(temp, coor);
-    } else if(type === 'txt'){
-      data = await this.parsingTxt(file);
-      if (coor !== this._coordinates[0]) {
-        data = this.handleDataChange(data, coor);
-      }
-    }
-    return data;
-  }
-
-  // 通过文件和后缀名判断属于哪个坐标系
+  // 通过文件名判断属于哪个坐标系
   async judgeTypeByName(file, type) {
     if (type === 'txt') { //txt默认为第一种坐标系
-      return this._coordinates[0];
+      return this.wikid[0];
     }
 
     if(type === 'shp'){
       let temp = await this.parsingShape(file);
-      for (let coor of this._coordinates) {
-        let data = this.handleDataChange(temp, coor);
+      let firstLon = temp[0].geometry.coordinates[0][0][0]
+      for (let type of this.wikid) {
+        let data = await this.handleDataChange(temp, type, false);
         if(this.boundCheck(data)){
-          return coor;
+          return type;
         }
       }
     }
     return '';
   }
-
   // shape文件解析
   async parsingShape(file) {
     const reader = new FileReader()
@@ -72,7 +48,6 @@ export default class File2Coor {
       }
     })
   }
-
   // txt文件解析
   parsingTxt(file) {
     let that = this;
@@ -87,7 +62,6 @@ export default class File2Coor {
       reader.readAsText(file.raw, 'gb2312');
     })
   }
-
   // 字符串解析
   getPloygon(arr) {
     let index = 0;
@@ -103,7 +77,6 @@ export default class File2Coor {
     console.log("解析txt得到的坐标", feature)
     return [feature];
   }
-
   readAsCoor(arr,index, feature){ // 原数据, 地址开始的描述行, 图形对象
     if(index >= arr.length){
       return feature;
@@ -131,9 +104,8 @@ export default class File2Coor {
     }
     return feature;
   }
-
   // 矢量图形坐标转换
-  handleDataChange(arr, coor) {
+  async handleDataChange(arr, type, precise = true) {
     let result = [];
     let that = this;
     console.log("原始数据", arr);
@@ -156,21 +128,38 @@ export default class File2Coor {
         }
       });
 
-      if (coor === that.coordinates[2]) {
+      let res = {
+        status: 500
+      };
+      if (type === that.coordinates[2]) {
         feature.geometry.coordinates = coordinates; // shp文件中的坐标
-      } else if (coor === that.coordinates[1]) {
-        for (let i = 0; i < coordinates.length; i++) {
-          let coor = coordinates[i];
-          feature.geometry.coordinates[i] = this.handleCoordinateChange(coor.map(item => {
-            return [item[1], '40' + item[0]]
-          })); // shp文件中的坐标xy颠倒,不带带号
+      } else if (type === that.coordinates[1]) {
+        if (precise) {
+          res = await this.projectCoor(this.wikid[1], this.wikid[2], coordinates)
         }
-      } else if (coor === that.coordinates[0]) {
-        for (let i = 0; i < coordinates.length; i++) {
-          let coor = coordinates[i];
-          feature.geometry.coordinates[i] = this.handleCoordinateChange(coor.map(item => {
-            return [item[1], item[0]]
-          })); // shp文件中的坐标xy颠倒,带带号
+        if (precise || res.status === 200) {
+          feature.geometry.coordinates = res.data.geometries[0].rings;
+        } else {
+          for (let i = 0; i < coordinates.length; i++) {
+            let coor = coordinates[i];
+            feature.geometry.coordinates[i] = this.handleCoordinateChange(coor.map(item => {
+              return [item[1], '40' + item[0]]
+            })); // shp文件中的坐标xy颠倒,不带带号
+          }
+        }
+      } else if (type === that.coordinates[0]) {
+        if (precise) {
+          res = await this.projectCoor(this.wikid[0], this.wikid[2], coordinates)
+        }
+        if (precise || res.status === 200) {
+          feature.geometry.coordinates = res.data.geometries[0].rings;
+        } else {
+          for (let i = 0; i < coordinates.length; i++) {
+            let coor = coordinates[i];
+            feature.geometry.coordinates[i] = this.handleCoordinateChange(coor.map(item => {
+              return [item[1], item[0]]
+            })); // shp文件中的坐标xy颠倒,带带号
+          }
         }
       }
       result.push(feature);
@@ -179,7 +168,25 @@ export default class File2Coor {
     console.log("转换后的坐标", result);
     return result;
   }
-
+  // 调用arcgis服务
+  projectCoor(inSr, outSr, coordinates) {
+    if (inSr === outSr) {
+      return { geometries: [{rings: coordinates}] };
+    }
+    let params = {
+      inSR: JSON.stringify({ "wkid": inSr }),
+      outSR: JSON.stringify({ "wkid": outSr }),
+      geometries: JSON.stringify({
+        geometryType: "esriGeometryPolygon",
+        geometries: [{rings: coordinates}],
+      }),
+      transformForward: true,
+      f: 'pjson'
+    }
+    let url="https://sampleserver6.arcgisonline.com/arcgis/rest/services/Utilities/Geometry/GeometryServer/project";
+    let data = Qs.stringify(params);
+    return axios.post(url, data ,{headers:{'Content-Type':'application/x-www-form-urlencoded'}})
+  }
   // 坐标串批量转换
   handleCoordinateChange(arr) {
     // 解析得到的[3342950.6691,40522253.5211] 应先转换为 [3342950.6691,522253.5211, 40*3] // 文本txt坐标
@@ -196,7 +203,6 @@ export default class File2Coor {
     }
     return result;
   }
-
   // cscs2000坐标系平面直角坐标系(XYZ)转大地坐标(BLH)
   // 常规的转换应先确定转换参数，即椭球参数、分带标准（3度，6度）和中央子午线的经度。
   // 对于中央子午线的确定有两种方法，一是取平面直角坐标系中Y坐标的前两位*3，即可得到对应的中央子午线的经度。
@@ -206,7 +212,7 @@ export default class File2Coor {
     let result = [];
     let iPI = 0.0174532925199433; //pi/180
     let a = 6378137.0; //长半轴 m
-    let b = 6356752.31414; //短半轴 m
+    let b = 6356752.314140356; //短半轴 m
     let f = 1 / 298.257222101; //扁率 a-b/a
     let e = 0.0818191910428; //第一偏心率 Math.sqrt(5)
     let ee = Math.sqrt(a * a - b * b) / b; //第二偏心率
@@ -229,14 +235,17 @@ export default class File2Coor {
     lat = bf - (tf / (2 * mf) * Y) * (Y / nf) * (1 - 1 / 12 * (5 + 3 * tf * tf + n2 - 9 * n2 * tf * tf) * (Y * Y / (nf * nf)) + 1 / 360 * (61 + 90 * tf * tf + 45 * tf ** 4) * (Y ** 4 / (nf ** 4)));
     //经度偏差
     lon = 1 / (nf * Math.cos(bf)) * Y - (1 / (6 * nf ** 3 * Math.cos(bf))) * (1 + 2 * tf * tf + n2) * Y ** 3+ (1 / (120 * nf ** 5 * Math.cos(bf))) * (5 + 28 * tf * tf + 24 * tf ** 4) * Y ** 4 * Y;
-    result[1] = (lat / iPI).toFixed(6); //纬度
-    result[0] = (L0 + lon / iPI).toFixed(6); //经度
+    result[1] = (lat / iPI + 0.0000043).toFixed(7); //纬度
+    result[0] = (L0 + lon / iPI).toFixed(7); //经度
     return result;
   }
 
   boundCheck(data, order = false) { // 转换后的坐标范围校验, order默认为lonlat(经度，纬度)
     for (let i = 0; i < data.length; i++){
       let geo = data[i];
+      if (!geo.geometry.coordinates.length) {
+        return false;
+      }
       for (let j = 0; j < geo.geometry.coordinates.length; j++){
         let rings = geo.geometry.coordinates[j];
         for (let k = 0; k < rings.length; k++){
@@ -249,11 +258,11 @@ export default class File2Coor {
     }
     return true;
   }
-
   checkPoint(point, order) { // 测试经纬度是否在杭州范围内
     let lon = +point[order ? 1 : 0]; // 经度
     let lat = +point[order ? 0 : 1]; // 纬度
-    const { xMin, xMax, yMin, yMax } = this._boundary;
-    return yMin <= lat && lat <= yMax && xMin <= lon && xMax;
+    return 29.1304 <= lat && lat <= 30.6191 && 118.1217 <= lon && 120.7753;
   }
 }
+
+export default new File2Coor();

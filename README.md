@@ -1,6 +1,6 @@
 # cgcsfile2json
 
-convert cgcs2000(EPSG4479, EPSG4490) polygon shp or txt to CGCS_2000(EPSG:4490) geojson
+convert cgcs2000(4528, 4549, 4490) polygon shp or txt to CGCS_2000(EPSG:4490) geojson
 
 ## usage
 
@@ -16,8 +16,8 @@ import file2coor from 'cgcsfile2json'
 
 let txtFile = getFile('test.txt');
 let coors = file2coor.getCoordinates();
-// coors: ['大地2000 有带号直角坐标系', '大地2000 无带号直角坐标系', '大地2000经纬度坐标系']
-// EPSG4479, EPSG4490
+// coors: [4528, 4549, 4490];
+// coorsCh: ['大地2000 有带号直角坐标系', '大地2000 无带号直角坐标系', '大地2000经纬度坐标系']
 // txt's coordinate defalut is '大地2000 有带号直角坐标系'
 let data = file2coor.convertFile(txtFile, 'txt'); 
 
@@ -30,15 +30,16 @@ let data2 = file2coor.convertFile(shpFile, 'shp', coors[2]);
 
 ### ``getCoordinates()``
 
-['大地2000 有带号直角坐标系', '大地2000 无带号直角坐标系', '大地2000经纬度坐标系']
+[4528, 4549, 4490]
 
 ### ``convertFile(file, type, coor = '大地2000 有带号直角坐标系')``
 
 convert .shp or .txt file to geojson
 
-### ``boundCheck(data)``
+### ``boundCheck(data, order = false)``
 
 check if the geojson data is out of bounds
+when 'order' value is true, representes the point's coordinates is [lat, lon], otherwise defalut is [lon, lat]
 
 ### ``setBoundary(bound)``
 
@@ -55,7 +56,7 @@ defalut boundary is:
 
 ### ``judgeTypeByName(file, type)``
 
-judge the file(shp or txt)'s coordinates, txt file is '大地2000 有带号直角坐标系'.
+judge the file(shp or txt)'s coordinates, txt file is 4528('大地2000 有带号直角坐标系').
 
 The coordinate system of SHP file will be judged by whether the converted data exceeds the set boundary
 
@@ -69,9 +70,11 @@ parsingShape(file).then(res => {
 })
 ```
 
-### ``handleDataChange(data, coor)``
+### ``handleDataChange(data, coor, precise = true)``
 
 convert the data to CGCS_2000(EPSG:4490) geojson
+when precise param is false, use the offline algorithm, which can only be accurate to the seven decimal place.
+defalut chose the online algorithm provided by [arcgis server](https://sampleserver6.arcgisonline.com/arcgis/rest/services/Utilities/Geometry/GeometryServer/project).
 
 ### ``xy2lonlat(X, Y, L0)``
 
